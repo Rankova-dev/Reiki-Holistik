@@ -1,0 +1,152 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Jost:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 36 43% 96%;
+    --foreground: 30 14% 15%;
+    --card: 36 30% 92%;
+    --card-foreground: 30 14% 15%;
+    --popover: 36 43% 96%;
+    --popover-foreground: 30 14% 15%;
+    --primary: 30 33% 28%;
+    --primary-foreground: 36 43% 96%;
+    --secondary: 33 22% 81%;
+    --secondary-foreground: 30 33% 28%;
+    --muted: 36 30% 92%;
+    --muted-foreground: 30 18% 37%;
+    --accent: 268 22% 78%;
+    --accent-foreground: 268 30% 52%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 33 22% 81%;
+    --input: 33 22% 81%;
+    --ring: 268 22% 78%;
+    --radius: 0.75rem;
+
+    /* Custom tokens */
+    --cream: 36 43% 96%;
+    --beige: 36 30% 92%;
+    --sand: 33 22% 81%;
+    --lavender: 260 22% 78%;
+    --lavender-deep: 268 30% 52%;
+    --earth: 30 22% 44%;
+    --earth-deep: 30 33% 28%;
+    --text: 30 14% 15%;
+    --text-soft: 30 18% 37%;
+    --golden: 42 80% 55%;
+    --golden-deep: 38 65% 42%;
+
+    --sidebar-background: 36 30% 92%;
+    --sidebar-foreground: 30 14% 15%;
+    --sidebar-primary: 30 33% 28%;
+    --sidebar-primary-foreground: 36 43% 96%;
+    --sidebar-accent: 260 18% 81%;
+    --sidebar-accent-foreground: 30 33% 28%;
+    --sidebar-border: 33 22% 81%;
+    --sidebar-ring: 260 18% 81%;
+  }
+
+  .dark {
+    --background: 30 33% 12%;
+    --foreground: 36 43% 96%;
+    --card: 30 33% 16%;
+    --card-foreground: 36 43% 96%;
+    --popover: 30 33% 12%;
+    --popover-foreground: 36 43% 96%;
+    --primary: 36 43% 96%;
+    --primary-foreground: 30 33% 12%;
+    --secondary: 30 22% 24%;
+    --secondary-foreground: 36 43% 96%;
+    --muted: 30 22% 20%;
+    --muted-foreground: 33 22% 65%;
+    --accent: 260 18% 35%;
+    --accent-foreground: 260 18% 81%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 30 22% 24%;
+    --input: 30 22% 24%;
+    --ring: 260 18% 50%;
+    --sidebar-background: 30 33% 10%;
+    --sidebar-foreground: 36 43% 96%;
+    --sidebar-primary: 36 43% 96%;
+    --sidebar-primary-foreground: 30 33% 10%;
+    --sidebar-accent: 260 18% 25%;
+    --sidebar-accent-foreground: 36 43% 96%;
+    --sidebar-border: 30 22% 20%;
+    --sidebar-ring: 260 18% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading;
+  }
+}
+
+/* Ambient background animation */
+@keyframes blob-drift-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(30px, -50px) scale(1.1); }
+  66% { transform: translate(-20px, 20px) scale(0.9); }
+}
+@keyframes blob-drift-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(-40px, 30px) scale(1.15); }
+  66% { transform: translate(25px, -35px) scale(0.85); }
+}
+@keyframes blob-drift-3 {
+  0%, 100% { transform: translate(0, 0) scale(1.05); }
+  33% { transform: translate(20px, 40px) scale(0.95); }
+  66% { transform: translate(-35px, -25px) scale(1.1); }
+}
+
+.ambient-blob {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  z-index: 0;
+}
+.ambient-blob-1 {
+  width: 600px;
+  height: 600px;
+  background: hsl(var(--lavender));
+  opacity: 0.18;
+  top: -10%;
+  left: -5%;
+  animation: blob-drift-1 16s ease-in-out infinite;
+}
+.ambient-blob-2 {
+  width: 500px;
+  height: 500px;
+  background: hsl(var(--sand));
+  opacity: 0.2;
+  top: 40%;
+  right: -10%;
+  animation: blob-drift-2 20s ease-in-out infinite;
+}
+.ambient-blob-3 {
+  width: 450px;
+  height: 450px;
+  background: hsl(var(--cream));
+  opacity: 0.22;
+  bottom: -5%;
+  left: 30%;
+  animation: blob-drift-3 14s ease-in-out infinite;
+}
+
+/* WhatsApp floating button */
+.whatsapp-float {
+  @apply fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-transform duration-200 hover:scale-110;
+  background: #25D366;
+}

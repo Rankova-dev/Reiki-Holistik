@@ -1,0 +1,1 @@
+DROP TRIGGER IF EXISTS on_payment_approval ON public.payment_requests;
