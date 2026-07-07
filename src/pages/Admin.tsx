@@ -2,11 +2,19 @@ import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle, XCircle, Eye, Loader2, ShieldAlert, CreditCard, Users, CalendarDays, Trash2, BarChart2 } from "lucide-react";
+import { CheckCircle, XCircle, Eye, Loader2, ShieldAlert, CreditCard, Users, CalendarDays, Trash2, BarChart2, FileEdit } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AdminGroupSessions from "@/components/admin/AdminGroupSessions";
 import AdminAnalytics from "@/components/admin/AdminAnalytics";
+import AdminContentHome from "@/components/admin/AdminContentHome";
+import AdminContentSobreMi from "@/components/admin/AdminContentSobreMi";
+import AdminContentProducts from "@/components/admin/AdminContentProducts";
+import AdminContentSesionesTexts from "@/components/admin/AdminContentSesionesTexts";
+import AdminContentContacto from "@/components/admin/AdminContentContacto";
+import AdminContentSettings from "@/components/admin/AdminContentSettings";
+import AdminContentLogin from "@/components/admin/AdminContentLogin";
 
 const ADMIN_EMAILS = ["betyriudols@gmail.com", "albert.diaz@alumni.mondragon.edu"];
 
@@ -14,7 +22,8 @@ const Admin = () => {
   const { user, loading } = useAuth();
   const queryClient = useQueryClient();
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [tab, setTab] = useState<"requests" | "credits" | "group-sessions" | "analytics">("requests");
+  const [tab, setTab] = useState<"requests" | "credits" | "group-sessions" | "analytics" | "content">("requests");
+  const [contentTab, setContentTab] = useState("home");
 
   const isAdmin = user && ADMIN_EMAILS.includes(user.email || "");
 
@@ -156,6 +165,14 @@ const Admin = () => {
             }`}
           >
             <BarChart2 className="w-4 h-4" /> Analíticas
+          </button>
+          <button
+            onClick={() => setTab("content")}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-body text-sm font-medium transition-colors ${
+              tab === "content" ? "bg-earth-deep text-cream" : "bg-muted text-muted-foreground hover:bg-accent"
+            }`}
+          >
+            <FileEdit className="w-4 h-4" /> Contenido
           </button>
         </div>
 
@@ -317,6 +334,31 @@ const Admin = () => {
 
         {tab === "group-sessions" && <AdminGroupSessions />}
         {tab === "analytics" && <AdminAnalytics />}
+
+        {tab === "content" && (
+          <AdminContentLogin>
+            <Tabs value={contentTab} onValueChange={setContentTab}>
+              <TabsList className="mb-6 flex-wrap h-auto">
+                <TabsTrigger value="home">Inicio</TabsTrigger>
+                <TabsTrigger value="sobre-mi">Sobre mí</TabsTrigger>
+                <TabsTrigger value="sesiones-cursos">Sesiones y Cursos</TabsTrigger>
+                <TabsTrigger value="contacto">Contacto</TabsTrigger>
+                <TabsTrigger value="settings">Ajustes generales</TabsTrigger>
+              </TabsList>
+              <TabsContent value="home"><AdminContentHome /></TabsContent>
+              <TabsContent value="sobre-mi"><AdminContentSobreMi /></TabsContent>
+              <TabsContent value="sesiones-cursos">
+                <div className="space-y-10">
+                  <AdminContentProducts />
+                  <hr className="border-border" />
+                  <AdminContentSesionesTexts />
+                </div>
+              </TabsContent>
+              <TabsContent value="contacto"><AdminContentContacto /></TabsContent>
+              <TabsContent value="settings"><AdminContentSettings /></TabsContent>
+            </Tabs>
+          </AdminContentLogin>
+        )}
       </div>
 
       {/* Proof preview dialog */}

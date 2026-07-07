@@ -1,7 +1,10 @@
 import { motion } from "framer-motion";
 import { useState } from "react";
+import { useSiteContent } from "@/hooks/useSiteContent";
+import { CONTACTO_DEFAULT } from "@/lib/contentDefaults";
 
 const Contacto = () => {
+  const { content: c } = useSiteContent("contacto", CONTACTO_DEFAULT);
   const [form, setForm] = useState({ name: "", email: "", service: "", message: "" });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -15,10 +18,10 @@ const Contacto = () => {
       <div className="container mx-auto max-w-2xl">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
           <h1 className="font-heading text-4xl md:text-5xl font-light italic text-lavender-deep mb-4 text-center">
-            Contacto
+            {c.title}
           </h1>
           <p className="text-center text-muted-foreground font-body font-light mb-12">
-            Escríbeme y te responderé lo antes posible
+            {c.subtitle}
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -71,7 +74,7 @@ const Contacto = () => {
               type="submit"
               className="w-full py-3.5 bg-earth-deep text-cream rounded-full font-body font-medium text-sm hover:opacity-90 transition-opacity"
             >
-              Enviar mensaje
+              {c.submit_label}
             </button>
           </form>
         </motion.div>

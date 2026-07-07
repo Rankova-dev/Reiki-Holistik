@@ -1,26 +1,36 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Lock, Star, Sparkles, CreditCard, ExternalLink } from "lucide-react";
+import { CreditCard } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import PaymentDialog from "@/components/PaymentDialog";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { useSiteContent } from "@/hooks/useSiteContent";
+import { useProductsBySlug, type Product } from "@/hooks/useProducts";
+import { SESIONES_DEFAULT, type SesionCard, type SesionOption } from "@/lib/contentDefaults";
+import { getIcon } from "@/lib/iconMap";
 
 const PICKTIME_URL = "https://www.picktime.com/6fe01a53-d09d-444c-9ae1-7ad7913020ad";
 
-const PRODUCT_IDS = {
-  "sesion-presencial": "57cbab1e-ebad-4330-9e15-737a51406f00",
-  "sesion-online": "f693fad5-40e9-4147-bbce-1bb65cdca89e",
-  "pack-4-sesiones": "b08e99fa-308f-4887-9b7f-cd3a71bcd51a",
-  "membresia-presencial": "2a5ee3b4-dff7-4235-8794-2c7aabb88aad",
-  "membresia-online": "24e7a193-d872-4e3c-95f4-b3881f523cd2",
-};
+function resolveOption(bySlug: Record<string, Product>, opt: SesionOption) {
+  const product = bySlug[opt.slug];
+  if (!product) return { productId: "", price: 0 };
+  if (opt.pricingLabel) {
+    const tier = product.metadata.pricing_options?.find((p) => p.label === opt.pricingLabel);
+    if (tier) return { productId: product.id, price: tier.amount };
+  }
+  return { productId: product.id, price: product.price };
+}
 
 const Sesiones = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { content } = useSiteContent("sesiones", SESIONES_DEFAULT);
+  const slugs = Array.from(new Set(content.cards.flatMap((c) => c.options.map((o) => o.slug))));
+  const { bySlug } = useProductsBySlug(slugs);
+
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<{
     id: string; name: string; option: string; amount: number;
@@ -123,7 +133,9 @@ const Sesiones = () => {
     setPaymentOpen(true);
   };
 
-  const handleBookingClick = (serviceType: "individual" | "pack" | "membership", optLabel: string, opt: { price: number; productId: string }) => {
+  const handleBookingClick = (card: SesionCard, optLabel: string, opt: { price: number; productId: string }) => {
+    const serviceType = card.serviceType;
+
     // Step 1: Check auth
     if (!user) {
       navigate("/auth");
@@ -138,7 +150,7 @@ const Sesiones = () => {
         setInfoModal({
           title: "Sesión no disponible",
           message: "Para reservar una sesión individual necesitas adquirirla primero.",
-          action: { label: "Contratar ahora", productId: opt.productId, name: "Sesión Individual", option: optLabel, amount: opt.price },
+          action: { label: "Contratar ahora", productId: opt.productId, name: card.title, option: optLabel, amount: opt.price },
         });
       }
     } else if (serviceType === "pack") {
@@ -148,7 +160,7 @@ const Sesiones = () => {
         setInfoModal({
           title: "Pack no disponible",
           message: "Para reservar necesitas adquirir el pack de 4 sesiones primero.",
-          action: { label: "Contratar ahora", productId: opt.productId, name: "Pack 4 Sesiones", option: optLabel, amount: opt.price },
+          action: { label: "Contratar ahora", productId: opt.productId, name: card.title, option: optLabel, amount: opt.price },
         });
       }
     } else if (serviceType === "membership") {
@@ -186,7 +198,7 @@ const Sesiones = () => {
         setInfoModal({
           title: "Membresía disponible",
           message: "Ya puedes acceder a la membresía. Adquiérela para empezar.",
-          action: { label: "Contratar membresía", productId: opt.productId, name: "Membresía", option: optLabel, amount: opt.price },
+          action: { label: "Contratar membresía", productId: opt.productId, name: card.title, option: optLabel, amount: opt.price },
         });
       } else {
         setInfoModal({
@@ -197,57 +209,15 @@ const Sesiones = () => {
     }
   };
 
-  const services = [
-    {
-      title: "Sesión individual",
-      icon: Sparkles,
-      serviceType: "individual" as const,
-      options: [
-        { label: "Presencial", price: 60, productId: PRODUCT_IDS["sesion-presencial"] },
-        { label: "Online", price: 50, productId: PRODUCT_IDS["sesion-online"] },
-      ],
-      desc: "Una sesión completa de Reiki personalizada, adaptada a tus necesidades del momento. Ideal para una primera experiencia o para sesiones puntuales.",
-      locked: false,
-      badge: null,
-      buttonLabel: "Reservar",
-    },
-    {
-      title: "Pack 4 sesiones",
-      icon: Star,
-      serviceType: "pack" as const,
-      options: [
-        { label: "Pack Online (4 sesiones)", price: 160, productId: PRODUCT_IDS["pack-4-sesiones"] },
-        { label: "Pack Presencial (4 sesiones)", price: 180, productId: PRODUCT_IDS["pack-4-sesiones"] },
-      ],
-      desc: "Trabajo profundo sobre los 4 cuerpos: físico, emocional, mental y espiritual. Un proceso de transformación integral en 4 encuentros.",
-      locked: false,
-      badge: "Desbloquea la Membresía",
-      buttonLabel: "Reservar",
-    },
-    {
-      title: "Membresía",
-      icon: Lock,
-      serviceType: "membership" as const,
-      options: [
-        { label: "Membresía Online", price: 55, productId: PRODUCT_IDS["membresia-online"] },
-        { label: "Membresía Presencial", price: 65, productId: PRODUCT_IDS["membresia-presencial"] },
-      ],
-      desc: "2 sesiones al mes (cada ~15 días) para mantener tu equilibrio energético de forma continua. Un acompañamiento regular para tu bienestar.",
-      locked: !membershipEligible,
-      badge: !membershipEligible ? "Requiere Pack de 4 o Formación" : "Acceso desbloqueado",
-      buttonLabel: "Unirme",
-    },
-  ];
-
   return (
     <div className="py-24 px-6">
       <div className="container mx-auto max-w-5xl">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
           <h1 className="font-heading text-4xl md:text-5xl font-light italic text-lavender-deep mb-4 text-center">
-            Sesiones de Reiki
+            {content.title}
           </h1>
           <p className="text-center text-muted-foreground font-body font-light mb-16 max-w-2xl mx-auto">
-            Cada sesión es un espacio seguro y personalizado para tu bienestar
+            {content.subtitle}
           </p>
         </motion.div>
 
@@ -269,50 +239,61 @@ const Sesiones = () => {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {services.map((s, i) => (
-            <motion.div
-              key={s.title}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.15 }}
-              className={`relative bg-background/80 backdrop-blur-sm border rounded-xl p-8 flex flex-col ${
-                s.locked ? "border-sand/80 opacity-90" : "border-border/50"
-              }`}
-            >
-              {s.badge && (
-                <span className={`absolute -top-3 left-6 px-3 py-1 text-xs font-body font-medium rounded-full ${
-                  s.locked ? "bg-sand text-earth-deep" : "bg-lavender text-earth-deep"
-                }`}>
-                  {s.badge}
-                </span>
-              )}
-              <s.icon className="w-8 h-8 text-lavender-deep mb-4" />
-              <h3 className="font-heading text-2xl font-medium mb-4">{s.title}</h3>
-              <p className="text-muted-foreground font-body font-light text-sm mb-6 flex-1">{s.desc}</p>
-              
-              {s.locked ? (
-                <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground font-body text-center">
-                    Completa el pack de 4 sesiones o adquiere cualquier formación para desbloquear.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {s.options.map((opt) => (
-                    <button
-                      key={opt.label}
-                      onClick={() => handleBookingClick(s.serviceType, opt.label, opt)}
-                      className="w-full flex items-center justify-between py-3 px-4 bg-earth-deep text-cream rounded-full font-body text-sm font-medium hover:opacity-90 transition-opacity"
-                    >
-                      <span>{s.buttonLabel} · {opt.label}</span>
-                      <span>{opt.price}€</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </motion.div>
-          ))}
+          {content.cards.map((card, i) => {
+            const Icon = getIcon(card.icon);
+            const locked = card.serviceType === "membership" && !membershipEligible;
+            const badge = card.serviceType === "membership"
+              ? (membershipEligible ? card.badgeUnlocked : card.badgeLocked)
+              : card.badge;
+
+            return (
+              <motion.div
+                key={card.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.15 }}
+                className={`relative bg-background/80 backdrop-blur-sm border rounded-xl p-8 flex flex-col ${
+                  locked ? "border-sand/80 opacity-90" : "border-border/50"
+                }`}
+              >
+                {badge && (
+                  <span className={`absolute -top-3 left-6 px-3 py-1 text-xs font-body font-medium rounded-full ${
+                    locked ? "bg-sand text-earth-deep" : "bg-lavender text-earth-deep"
+                  }`}>
+                    {badge}
+                  </span>
+                )}
+                <Icon className="w-8 h-8 text-lavender-deep mb-4" />
+                <h3 className="font-heading text-2xl font-medium mb-4">{card.title}</h3>
+                <p className="text-muted-foreground font-body font-light text-sm mb-6 flex-1">{card.desc}</p>
+
+                {locked ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground font-body text-center">
+                      Completa el pack de 4 sesiones o adquiere cualquier formación para desbloquear.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {card.options.map((opt) => {
+                      const resolved = resolveOption(bySlug, opt);
+                      return (
+                        <button
+                          key={opt.label}
+                          onClick={() => handleBookingClick(card, opt.label, resolved)}
+                          className="w-full flex items-center justify-between py-3 px-4 bg-earth-deep text-cream rounded-full font-body text-sm font-medium hover:opacity-90 transition-opacity"
+                        >
+                          <span>{card.buttonLabel} · {opt.label}</span>
+                          <span>{resolved.price}€</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </motion.div>
+            );
+          })}
         </div>
       </div>
 

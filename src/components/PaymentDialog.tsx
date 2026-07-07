@@ -5,6 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { Copy, Upload, CheckCircle, Loader2, LogIn } from "lucide-react";
+import { useSiteContent } from "@/hooks/useSiteContent";
+import { SETTINGS_DEFAULT } from "@/lib/contentDefaults";
 
 interface PaymentDialogProps {
   open: boolean;
@@ -15,10 +17,10 @@ interface PaymentDialogProps {
   amount: number;
 }
 
-const IBAN = "BE39905290167019";
-
 const PaymentDialog = ({ open, onOpenChange, productId, productName, pricingOption, amount }: PaymentDialogProps) => {
   const { user } = useAuth();
+  const { content: settings } = useSiteContent("settings", SETTINGS_DEFAULT);
+  const IBAN = settings.iban;
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
