@@ -1,0 +1,35 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY}
+        VITE_SUPABASE_PROJECT_ID: ${VITE_SUPABASE_PROJECT_ID}
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    environment:
+      PORT: "3001"
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGIN: "*"
+      DB_PATH: /app/data/content.json
+      UPLOADS_DIR: /app/uploads
+    volumes:
+      - content-data:/app/data
+      - content-uploads:/app/uploads
+    restart: unless-stopped
+
+volumes:
+  content-data:
+  content-uploads:
