@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { Copy, Upload, CheckCircle, Loader2, LogIn } from "lucide-react";
@@ -30,14 +30,7 @@ const PaymentDialog = ({ open, onOpenChange, productId, productName, pricingOpti
   useEffect(() => {
     if (!user || !open) return;
     setContactEmail(user.email || "");
-    supabase
-      .from("profiles")
-      .select("phone")
-      .eq("id", user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.phone) setPhone(data.phone);
-      });
+    if (user.phone) setPhone(user.phone);
   }, [user, open]);
 
   const copyIban = () => {
@@ -55,31 +48,19 @@ const PaymentDialog = ({ open, onOpenChange, productId, productName, pricingOpti
 
     try {
       // Upload proof image
-      const ext = file.name.split(".").pop();
-      const path = `${user.id}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from("payment-proofs")
-        .upload(path, file);
-
-      if (uploadError) throw uploadError;
+      const { path } = await api.uploadPaymentProof(file);
 
       // Save phone to profile for future contact
-      await supabase
-        .from("profiles")
-        .update({ phone: phone.trim() })
-        .eq("id", user.id);
+      await api.updateMe({ phone: phone.trim() });
 
       // Create payment request
-      const { error } = await supabase.from("payment_requests").insert({
-        user_id: user.id,
+      await api.createPaymentRequest({
         product_id: productId,
         pricing_option: pricingOption,
         amount,
         proof_url: path,
-        admin_notes: `Contacto: ${contactEmail.trim()} · Tel: ${phone.trim()}`,
+        contact_note: `Contacto: ${contactEmail.trim()} · Tel: ${phone.trim()}`,
       });
-
-      if (error) throw error;
 
       setSubmitted(true);
       toast.success("¡Solicitud enviada! Te confirmaremos el acceso pronto.");

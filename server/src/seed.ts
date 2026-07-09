@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { store } from "./db";
 import { env } from "./env";
@@ -10,6 +11,29 @@ function nowIso() {
 export function seedAdminUser() {
   const hash = bcrypt.hashSync(env.adminPassword, 10);
   store.setAdminUser(env.adminUsername, hash);
+}
+
+// Business-admin customer account (payment requests / credits / group sessions tabs), distinct
+// from the content-admin user above. Re-synced from env on every boot, same pattern.
+export function seedOwnerAdmin() {
+  if (!env.ownerEmail || !env.ownerPassword) return;
+
+  const hash = bcrypt.hashSync(env.ownerPassword, 10);
+  const existing = store.getUserByEmail(env.ownerEmail);
+  if (existing) {
+    store.updateUser(existing.id, { password_hash: hash, role: "admin" });
+  } else {
+    store.createUser({
+      id: crypto.randomUUID(),
+      email: env.ownerEmail.toLowerCase(),
+      password_hash: hash,
+      google_sub: null,
+      name: null,
+      phone: null,
+      role: "admin",
+      created_at: nowIso(),
+    });
+  }
 }
 
 interface SeedProduct {

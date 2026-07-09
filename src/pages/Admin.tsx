@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle, XCircle, Eye, Loader2, ShieldAlert, CreditCard, Users, CalendarDays, Trash2, BarChart2, FileEdit } from "lucide-react";
 import { toast } from "sonner";
@@ -16,8 +16,6 @@ import AdminContentContacto from "@/components/admin/AdminContentContacto";
 import AdminContentSettings from "@/components/admin/AdminContentSettings";
 import AdminContentLogin from "@/components/admin/AdminContentLogin";
 
-const ADMIN_EMAILS = ["betyriudols@gmail.com", "albert.diaz@alumni.mondragon.edu"];
-
 const Admin = () => {
   const { user, loading } = useAuth();
   const queryClient = useQueryClient();
@@ -25,62 +23,35 @@ const Admin = () => {
   const [tab, setTab] = useState<"requests" | "credits" | "group-sessions" | "analytics" | "content">("requests");
   const [contentTab, setContentTab] = useState("home");
 
-  const isAdmin = user && ADMIN_EMAILS.includes(user.email || "");
+  const isAdmin = user?.role === "admin";
 
   // Payment requests
   const { data: requests = [], isLoading } = useQuery({
     queryKey: ["admin-payment-requests"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("payment_requests")
-        .select("*, products(name, slug, type)")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => api.allPaymentRequests(),
     enabled: !!isAdmin,
   });
 
-  // Profiles for user display
+  // Users for display names
   const userIds = [...new Set(requests.map((r: any) => r.user_id))];
   const { data: profiles = [] } = useQuery({
     queryKey: ["admin-profiles", userIds],
-    queryFn: async () => {
-      if (userIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, display_name")
-        .in("id", userIds);
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => api.adminUsersByIds(userIds),
     enabled: userIds.length > 0,
   });
 
   // Session credits overview
   const { data: allCredits = [] } = useQuery({
     queryKey: ["admin-credits"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("session_credits")
-        .select("*, products(name)")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => api.allSessionCredits(),
     enabled: !!isAdmin,
   });
 
-  const profileMap = Object.fromEntries(profiles.map((p: any) => [p.id, p.display_name]));
+  const profileMap = Object.fromEntries(profiles.map((p: any) => [p.id, p.name || p.email]));
 
   const updateStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase
-        .from("payment_requests")
-        .update({ status })
-        .eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: ({ id, status }: { id: string; status: "approved" | "rejected" }) =>
+      api.updatePaymentRequestStatus(id, status),
     onSuccess: (_, { status }) => {
       queryClient.invalidateQueries({ queryKey: ["admin-payment-requests"] });
       queryClient.invalidateQueries({ queryKey: ["admin-credits"] });
@@ -90,10 +61,7 @@ const Admin = () => {
   });
 
   const deleteRequest = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("payment_requests").delete().eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: (id: string) => api.deletePaymentRequest(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-payment-requests"] });
       toast.success("Solicitud eliminada");
@@ -102,10 +70,11 @@ const Admin = () => {
   });
 
   const viewProof = async (proofPath: string) => {
-    const { data } = await supabase.storage
-      .from("payment-proofs")
-      .createSignedUrl(proofPath, 300);
-    if (data?.signedUrl) setPreviewUrl(data.signedUrl);
+    try {
+      setPreviewUrl(await api.fetchPaymentProofBlobUrl(proofPath));
+    } catch {
+      toast.error("No se pudo cargar el justificante");
+    }
   };
 
   if (loading) return <div className="py-24 text-center text-muted-foreground">Cargando...</div>;
@@ -362,7 +331,13 @@ const Admin = () => {
       </div>
 
       {/* Proof preview dialog */}
-      <Dialog open={!!previewUrl} onOpenChange={() => setPreviewUrl(null)}>
+      <Dialog
+        open={!!previewUrl}
+        onOpenChange={() => {
+          if (previewUrl) URL.revokeObjectURL(previewUrl);
+          setPreviewUrl(null);
+        }}
+      >
         <DialogContent className="sm:max-w-2xl">
           {previewUrl && (
             <img src={previewUrl} alt="Justificante de pago" className="w-full rounded-lg" />

@@ -7,6 +7,8 @@ services:
         VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
         VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY}
         VITE_SUPABASE_PROJECT_ID: ${VITE_SUPABASE_PROJECT_ID}
+        VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+        VITE_APPLE_SERVICES_ID: ${APPLE_SERVICES_ID}
     expose:
       - "80"
     depends_on:
@@ -25,11 +27,22 @@ services:
       CORS_ORIGIN: "*"
       DB_PATH: /app/data/content.json
       UPLOADS_DIR: /app/uploads
+      COURSE_MEDIA_DIR: /app/course-media
+      PAYMENT_PROOFS_DIR: /app/payment-proofs
+      USER_JWT_SECRET: ${USER_JWT_SECRET}
+      OWNER_EMAIL: ${OWNER_EMAIL}
+      OWNER_PASSWORD: ${OWNER_PASSWORD}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      APPLE_SERVICES_ID: ${APPLE_SERVICES_ID}
     volumes:
       - content-data:/app/data
       - content-uploads:/app/uploads
+      - course-media:/app/course-media
+      - payment-proofs:/app/payment-proofs
     restart: unless-stopped
 
 volumes:
   content-data:
   content-uploads:
+  course-media:
+  payment-proofs:

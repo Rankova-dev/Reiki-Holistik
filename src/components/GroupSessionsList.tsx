@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { Video, MapPin, UserCheck, X } from "lucide-react";
@@ -10,6 +10,7 @@ const GroupSessionsList = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [now, setNow] = useState(new Date());
+  const isAdmin = user?.role === "admin";
 
   // Update "now" every minute to track button activation
   useEffect(() => {
@@ -17,61 +18,24 @@ const GroupSessionsList = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Check if user is admin
-  const { data: isAdmin } = useQuery({
-    queryKey: ["user-is-admin", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user!.id)
-        .eq("role", "admin")
-        .maybeSingle();
-      if (error) throw error;
-      return !!data;
-    },
-    enabled: !!user,
-  });
-
-  // Fetch confirmed group sessions (RLS already filters by purchased courses)
+  // Fetch confirmed group sessions (server already filters by purchased courses)
   const { data: sessions = [] } = useQuery({
-    queryKey: ["student-group-sessions"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("group_sessions")
-        .select("*, products(name)")
-        .eq("status", "confirmed")
-        .order("proposed_datetime", { ascending: true });
-      if (error) throw error;
-      return data;
-    },
+    queryKey: ["student-group-sessions", user?.id],
+    queryFn: () => api.groupSessions(),
     enabled: !!user,
   });
 
   // Fetch user's attendance records
   const { data: myAttendance = [] } = useQuery({
     queryKey: ["my-attendance", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("group_session_attendance")
-        .select("*")
-        .eq("user_id", user!.id)
-        .is("cancelled_at", null);
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => api.myAttendance(),
     enabled: !!user,
   });
 
   const attendanceMap = Object.fromEntries(myAttendance.map((a: any) => [a.session_id, a]));
 
   const registerMutation = useMutation({
-    mutationFn: async (sessionId: string) => {
-      const { error } = await supabase
-        .from("group_session_attendance")
-        .insert({ session_id: sessionId, user_id: user!.id });
-      if (error) throw error;
-    },
+    mutationFn: (sessionId: string) => api.registerForSession(sessionId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my-attendance"] });
       toast.success("¡Te has apuntado!");
@@ -80,14 +44,7 @@ const GroupSessionsList = () => {
   });
 
   const cancelMutation = useMutation({
-    mutationFn: async (sessionId: string) => {
-      const { error } = await supabase
-        .from("group_session_attendance")
-        .update({ cancelled_at: new Date().toISOString() })
-        .eq("session_id", sessionId)
-        .eq("user_id", user!.id);
-      if (error) throw error;
-    },
+    mutationFn: (sessionId: string) => api.cancelSessionRegistration(sessionId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my-attendance"] });
       toast.success("Asistencia cancelada");

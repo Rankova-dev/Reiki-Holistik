@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { Calendar, Lock, ExternalLink } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import GroupSessionsList from "@/components/GroupSessionsList";
 import UpcomingBookings from "@/components/UpcomingBookings";
@@ -14,32 +14,17 @@ const Calendario = () => {
 
   const { data: purchases = [] } = useQuery({
     queryKey: ["calendar-purchases", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("purchases")
-        .select("*, products(*)")
-        .eq("user_id", user!.id)
-        .eq("status", "completed");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => api.myPurchases(),
     enabled: !!user,
   });
 
   // Get session credits
-  const { data: credits = [] } = useQuery({
+  const { data: allCredits = [] } = useQuery({
     queryKey: ["calendar-credits", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("session_credits")
-        .select("*")
-        .eq("user_id", user!.id)
-        .eq("status", "available");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => api.mySessionCredits(),
     enabled: !!user,
   });
+  const credits = allCredits.filter((c: any) => c.status === "available");
 
   const hasCourseAccess = purchases.some((p: any) => p.products?.type === "course");
   const hasSessionAccess = credits.length > 0 || purchases.some((p: any) => p.products?.type === "membership");

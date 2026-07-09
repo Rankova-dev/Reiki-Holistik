@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { Copy, Upload, CheckCircle, Loader2, CalendarClock } from "lucide-react";
@@ -33,23 +33,14 @@ const RenewalPaymentDialog = ({ open, onOpenChange, productId, productName, amou
     setUploading(true);
 
     try {
-      const ext = file.name.split(".").pop();
-      const path = `${user.id}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from("payment-proofs")
-        .upload(path, file);
+      const { path } = await api.uploadPaymentProof(file);
 
-      if (uploadError) throw uploadError;
-
-      const { error } = await supabase.from("payment_requests").insert({
-        user_id: user.id,
+      await api.createPaymentRequest({
         product_id: productId,
         pricing_option: "Mensual — Renovación",
         amount,
         proof_url: path,
       });
-
-      if (error) throw error;
 
       setSubmitted(true);
       toast.success("¡Renovación enviada! Te confirmaremos el acceso pronto.");

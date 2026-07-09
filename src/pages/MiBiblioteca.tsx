@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Lock, Play, CheckCircle, ChevronRight, Calendar, AlertTriangle, Users, BookOpen, ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Progress } from "@/components/ui/progress";
 import VideoLesson from "@/components/VideoLesson";
@@ -21,15 +21,7 @@ const MiBiblioteca = () => {
   // Fetch user's purchased products
   const { data: purchases = [] } = useQuery({
     queryKey: ["my-purchases", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("purchases")
-        .select("*, products(*)")
-        .eq("user_id", user!.id)
-        .eq("status", "completed");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => api.myPurchases(),
     enabled: !!user,
   });
 
@@ -39,20 +31,14 @@ const MiBiblioteca = () => {
   const expiredPurchases = purchases.filter((p: any) => p.expires_at && p.expires_at <= now);
 
   // Check if there's a pending renewal request for expired purchases
-  const { data: pendingRenewals = [] } = useQuery({
-    queryKey: ["pending-renewals", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("payment_requests")
-        .select("product_id")
-        .eq("user_id", user!.id)
-        .eq("status", "pending")
-        .ilike("pricing_option", "%Mensual%");
-      if (error) throw error;
-      return data;
-    },
+  const { data: allMyRequests = [] } = useQuery({
+    queryKey: ["my-requests-for-renewal", user?.id],
+    queryFn: () => api.myPaymentRequests(),
     enabled: !!user && expiredPurchases.length > 0,
   });
+  const pendingRenewals = allMyRequests.filter(
+    (r: any) => r.status === "pending" && /mensual/i.test(r.pricing_option || "")
+  );
 
   const hasPendingRenewal = (productId: string) =>
     pendingRenewals.some((r: any) => r.product_id === productId);
@@ -82,18 +68,7 @@ const MiBiblioteca = () => {
   // Fetch user's attended/registered past group sessions for the selected course
   const { data: attendedEncounters = [] } = useQuery({
     queryKey: ["attended-encounters", user?.id, selectedCourseId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("group_session_attendance")
-        .select("id, cancelled_at, group_sessions!inner(course_id, proposed_datetime, status)")
-        .eq("user_id", user!.id)
-        .is("cancelled_at", null)
-        .eq("group_sessions.course_id", selectedCourseId!)
-        .eq("group_sessions.status", "confirmed")
-        .lte("group_sessions.proposed_datetime", new Date().toISOString());
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => api.attendedForCourse(selectedCourseId!),
     enabled: !!user && !!selectedCourseId && requiresFirstEncounter,
   });
 
@@ -102,84 +77,46 @@ const MiBiblioteca = () => {
   // Fetch course content for purchased products
   const { data: lessons = [] } = useQuery({
     queryKey: ["my-lessons", effectiveProductIds],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("course_content")
-        .select("*")
-        .in("product_id", effectiveProductIds)
-        .order("lesson_number", { ascending: true });
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => api.courseContent(effectiveProductIds),
     enabled: effectiveProductIds.length > 0,
   });
 
   // Fetch user progress
   const { data: progress = [] } = useQuery({
     queryKey: ["my-progress", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("user_progress")
-        .select("*")
-        .eq("user_id", user!.id);
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => api.myProgress(),
     enabled: !!user,
   });
 
-  // Generate signed URLs for video content
+  // Fetch short-lived streaming URLs for video/PDF content (mirrors the old Supabase signed URLs)
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [pdfUrls, setPdfUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    const generateSignedUrls = async () => {
+    const generateUrls = async () => {
       const urls: Record<string, string> = {};
       const pdfs: Record<string, string> = {};
       for (const lesson of lessons) {
-        if (lesson.video_url) {
-          // Extract the storage path from the video_url
-          const path = lesson.video_url.includes('/storage/v1/object/public/course-videos/')
-            ? lesson.video_url.split('/storage/v1/object/public/course-videos/')[1]
-            : lesson.video_url;
-          const { data } = await supabase.storage
-            .from("course-videos")
-            .createSignedUrl(path, 3600); // 1 hour
-          if (data?.signedUrl) {
-            urls[lesson.id] = data.signedUrl;
-          }
+        if (lesson.video_path) {
+          const { url } = await api.videoUrl(lesson.id);
+          urls[lesson.id] = url;
         }
-        if (lesson.downloadable_url) {
-          const path = lesson.downloadable_url.includes('/storage/v1/object/public/course-pdfs/')
-            ? lesson.downloadable_url.split('/storage/v1/object/public/course-pdfs/')[1]
-            : lesson.downloadable_url;
-          const { data } = await supabase.storage
-            .from("course-pdfs")
-            .createSignedUrl(path, 3600);
-          if (data?.signedUrl) {
-            pdfs[lesson.id] = data.signedUrl;
-          }
+        if (lesson.downloadable_path) {
+          const { url } = await api.pdfUrl(lesson.id);
+          pdfs[lesson.id] = url;
         }
       }
       setSignedUrls(urls);
       setPdfUrls(pdfs);
     };
     if (lessons.length > 0) {
-      generateSignedUrls();
+      generateUrls();
     }
   }, [lessons]);
 
   // Mark lesson as completed
   const markComplete = useMutation({
-    mutationFn: async (contentId: string) => {
-      const { error } = await supabase.from("user_progress").upsert({
-        user_id: user!.id,
-        course_content_id: contentId,
-        completed: true,
-        completed_at: new Date().toISOString(),
-      }, { onConflict: "user_id,course_content_id" });
-      if (error) throw error;
-    },
+    mutationFn: (contentId: string) => api.markProgress(contentId, true),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my-progress"] });
     },
@@ -193,10 +130,10 @@ const MiBiblioteca = () => {
     if (index === 0) return true;
     const current = lessons[index];
     // PDFs (no video) require ALL previous video lessons to be completed
-    if (current && !current.video_url && current.downloadable_url) {
+    if (current && !current.video_path && current.downloadable_path) {
       return lessons
         .slice(0, index)
-        .filter((l: any) => l.video_url)
+        .filter((l: any) => l.video_path)
         .every((l: any) => isCompleted(l.id));
     }
     return isCompleted(lessons[index - 1]?.id);
@@ -485,7 +422,7 @@ const MiBiblioteca = () => {
                   </div>
 
                   {/* Video player (only for unlocked lessons) */}
-                  {unlocked && lesson.video_url && signedUrls[lesson.id] && (
+                  {unlocked && lesson.video_path && signedUrls[lesson.id] && (
                     <VideoLesson
                       lessonId={lesson.id}
                       src={signedUrls[lesson.id]}
@@ -495,7 +432,7 @@ const MiBiblioteca = () => {
                   )}
 
                   {/* PDF material (only for unlocked lessons without a video) */}
-                  {unlocked && !lesson.video_url && lesson.downloadable_url && pdfUrls[lesson.id] && (
+                  {unlocked && !lesson.video_path && lesson.downloadable_path && pdfUrls[lesson.id] && (
                     <div className="mt-4 space-y-3">
                       <iframe
                         src={`${pdfUrls[lesson.id]}#toolbar=0&navpanes=0&scrollbar=1`}

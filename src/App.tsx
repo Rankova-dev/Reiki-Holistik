@@ -19,7 +19,6 @@ import Calendario from "@/pages/Calendario";
 import MiBiblioteca from "@/pages/MiBiblioteca";
 import Cuenta from "@/pages/Cuenta";
 import Auth from "@/pages/Auth";
-import ResetPassword from "@/pages/ResetPassword";
 import NotFound from "@/pages/NotFound";
 import Admin from "@/pages/Admin";
 
@@ -50,7 +49,6 @@ const App = () => (
                 <Route path="/cuenta" element={<ProtectedRoute><Cuenta /></ProtectedRoute>} />
                 <Route path="/admin" element={<Admin />} />
                 <Route path="/auth" element={<Auth />} />
-                <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Layout>

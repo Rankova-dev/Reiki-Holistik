@@ -1,5 +1,5 @@
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import { Calendar, Video, MapPin, Clock } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -16,17 +16,7 @@ const UpcomingBookings = () => {
 
   const { data: bookings = [] } = useQuery({
     queryKey: ["upcoming-bookings", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("bookings")
-        .select("*")
-        .eq("user_id", user!.id)
-        .gte("start_time", new Date().toISOString())
-        .eq("status", "confirmed")
-        .order("start_time", { ascending: true });
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => api.myBookings(),
     enabled: !!user,
   });
 

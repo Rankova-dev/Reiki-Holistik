@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { CreditCard } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import PaymentDialog from "@/components/PaymentDialog";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -38,78 +38,41 @@ const Sesiones = () => {
   const [infoModal, setInfoModal] = useState<{ title: string; message: string; action?: { label: string; productId: string; name: string; option: string; amount: number } } | null>(null);
 
   // Check membership eligibility
-  const { data: membershipEligible } = useQuery({
+  const { data: membershipEligibleResult } = useQuery({
     queryKey: ["membership-eligible", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("check_membership_eligible", {
-        _user_id: user!.id,
-      });
-      if (error) throw error;
-      return data as boolean;
-    },
+    queryFn: () => api.membershipEligible(),
     enabled: !!user,
   });
+  const membershipEligible = membershipEligibleResult?.eligible ?? false;
 
   // Get session credits
   const { data: credits = [] } = useQuery({
     queryKey: ["session-credits", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("session_credits")
-        .select("*, products(slug)")
-        .eq("user_id", user!.id);
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => api.mySessionCredits(),
     enabled: !!user,
   });
 
   // Get purchases for membership check
   const { data: purchases = [] } = useQuery({
     queryKey: ["session-purchases", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("purchases")
-        .select("*, products(slug, type)")
-        .eq("user_id", user!.id)
-        .eq("status", "completed");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => api.myPurchases(),
     enabled: !!user,
   });
 
   // Get monthly booking limits
   const { data: monthlyLimits = [] } = useQuery({
     queryKey: ["session-monthly-limits", user?.id],
-    queryFn: async () => {
-      const currentMonth = new Date().toISOString().slice(0, 7);
-      const { data, error } = await supabase
-        .from("monthly_booking_limits")
-        .select("*")
-        .eq("user_id", user!.id)
-        .eq("month", currentMonth);
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => api.myMonthlyLimit(new Date().toISOString().slice(0, 7)),
     enabled: !!user,
   });
 
   // Get last booking for 15-day gap check
-  const { data: lastBooking } = useQuery({
+  const { data: myBookingsForGap = [] } = useQuery({
     queryKey: ["last-booking", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("bookings")
-        .select("start_time")
-        .eq("user_id", user!.id)
-        .order("start_time", { ascending: false })
-        .limit(1);
-      if (error) throw error;
-      return data?.[0] || null;
-    },
+    queryFn: () => api.myBookings(true),
     enabled: !!user,
   });
+  const lastBooking = [...myBookingsForGap].sort((a: any, b: any) => b.start_time.localeCompare(a.start_time))[0] || null;
 
   const availableCredits = credits.filter((c: any) => c.status === "available").length;
 

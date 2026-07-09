@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
+import { contentApi } from "@/lib/contentApi";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Edit2, Trash2, Users, ChevronDown, ChevronUp, CheckCircle, XCircle, Video } from "lucide-react";
 import { toast } from "sonner";
@@ -47,113 +48,46 @@ const AdminGroupSessions = () => {
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
 
   // Fetch products (courses) for dropdown
-  const { data: products = [] } = useQuery({
+  const { data: allProducts = [] } = useQuery({
     queryKey: ["admin-products-courses"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("products")
-        .select("id, name, slug")
-        .eq("type", "course")
-        .eq("is_active", true);
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => contentApi.getProducts(),
   });
+  const products = allProducts.filter((p: any) => p.type === "course");
 
   // Fetch all group sessions
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ["admin-group-sessions"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("group_sessions")
-        .select("*, products(name)")
-        .order("proposed_datetime", { ascending: true });
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => api.adminGroupSessions(),
   });
 
-  // Fetch admin-only notes (stored in separate table for privacy)
-  const { data: adminNotes = [] } = useQuery({
-    queryKey: ["admin-session-notes"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("group_session_admin_notes")
-        .select("session_id, notes");
-      if (error) throw error;
-      return data;
-    },
-  });
-  const notesMap = Object.fromEntries(adminNotes.map((n: any) => [n.session_id, n.notes]));
+  const notesMap = Object.fromEntries(sessions.map((s: any) => [s.id, s.admin_notes]));
 
   // Fetch attendance for all sessions
   const sessionIds = sessions.map((s: any) => s.id);
   const { data: allAttendance = [] } = useQuery({
     queryKey: ["admin-attendance", sessionIds],
     queryFn: async () => {
-      if (sessionIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("group_session_attendance")
-        .select("*")
-        .in("session_id", sessionIds)
-        .is("cancelled_at", null);
-      if (error) throw error;
-      return data;
+      const lists = await Promise.all(sessionIds.map((id: string) => api.sessionAttendance(id)));
+      return lists.flat().filter((a: any) => !a.cancelled_at);
     },
     enabled: sessionIds.length > 0,
   });
 
-  // Fetch profiles for attendees
-  const attendeeIds = [...new Set(allAttendance.map((a: any) => a.user_id))];
-  const { data: attendeeProfiles = [] } = useQuery({
-    queryKey: ["admin-attendee-profiles", attendeeIds],
-    queryFn: async () => {
-      if (attendeeIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, display_name")
-        .in("id", attendeeIds);
-      if (error) throw error;
-      return data;
-    },
-    enabled: attendeeIds.length > 0,
-  });
-
-  const profileMap = Object.fromEntries(attendeeProfiles.map((p: any) => [p.id, p.display_name]));
+  const profileMap = Object.fromEntries(
+    allAttendance.map((a: any) => [a.user_id, a.users?.name || a.users?.email])
+  );
 
   const saveMutation = useMutation({
     mutationFn: async (data: SessionForm & { id?: string }) => {
-      const jitsiUrl = `https://meet.jit.si/reiki-holistik-${crypto.randomUUID()}`;
-      const { admin_notes, ...sessionData } = data;
       if (data.id) {
-        // Update — don't regenerate jitsi URL
-        const { id, ...rest } = sessionData;
-        const { error } = await supabase
-          .from("group_sessions")
-          .update(rest)
-          .eq("id", id);
-        if (error) throw error;
-        await supabase
-          .from("group_session_admin_notes")
-          .upsert({ session_id: id!, notes: admin_notes || null, updated_at: new Date().toISOString() });
+        const { id, ...rest } = data;
+        await api.updateGroupSession(id, rest);
       } else {
-        // Create
-        const { data: inserted, error } = await supabase
-          .from("group_sessions")
-          .insert({ ...sessionData, jitsi_room_url: jitsiUrl })
-          .select("id")
-          .single();
-        if (error) throw error;
-        if (admin_notes && inserted?.id) {
-          await supabase
-            .from("group_session_admin_notes")
-            .insert({ session_id: inserted.id, notes: admin_notes });
-        }
+        await api.createGroupSession(data);
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-group-sessions"] });
-      queryClient.invalidateQueries({ queryKey: ["admin-session-notes"] });
       setShowForm(false);
       setEditingId(null);
       setForm(emptyForm);
@@ -163,10 +97,7 @@ const AdminGroupSessions = () => {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("group_sessions").delete().eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: (id: string) => api.deleteGroupSession(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-group-sessions"] });
       toast.success("Sesión eliminada");
@@ -175,13 +106,7 @@ const AdminGroupSessions = () => {
   });
 
   const toggleAttended = useMutation({
-    mutationFn: async ({ id, attended }: { id: string; attended: boolean }) => {
-      const { error } = await supabase
-        .from("group_session_attendance")
-        .update({ attended })
-        .eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: ({ id, attended }: { id: string; attended: boolean }) => api.toggleAttendance(id, attended),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-attendance"] });
       toast.success("Asistencia actualizada");

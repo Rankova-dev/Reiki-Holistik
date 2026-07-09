@@ -1,50 +1,51 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { User, Session } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
+import { api, AccountUser, getAccountToken, clearAccountToken } from "@/lib/api";
 
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
+  user: AccountUser | null;
   loading: boolean;
   signOut: () => Promise<void>;
+  refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  session: null,
   loading: true,
   signOut: async () => {},
+  refresh: async () => {},
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<AccountUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
-      }
-    );
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+  const refresh = async () => {
+    if (!getAccountToken()) {
+      setUser(null);
       setLoading(false);
-    });
+      return;
+    }
+    try {
+      setUser(await api.me());
+    } catch {
+      clearAccountToken();
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    return () => subscription.unsubscribe();
+  useEffect(() => {
+    refresh();
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    clearAccountToken();
+    setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signOut, refresh }}>
       {children}
     </AuthContext.Provider>
   );

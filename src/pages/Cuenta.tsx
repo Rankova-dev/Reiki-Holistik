@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { User, CreditCard, Calendar, Bell, LogOut, Clock, CheckCircle, XCircle, MessageCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import UpcomingBookings from "@/components/UpcomingBookings";
 
@@ -13,60 +13,28 @@ const Cuenta = () => {
   // Fetch payment requests (solicitudes)
   const { data: requests = [] } = useQuery({
     queryKey: ["my-requests", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("payment_requests")
-        .select("*, products(name)")
-        .eq("user_id", user!.id)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => api.myPaymentRequests(),
     enabled: !!user,
   });
 
   // Fetch session credits
   const { data: credits = [] } = useQuery({
     queryKey: ["my-credits", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("session_credits")
-        .select("*, products(name)")
-        .eq("user_id", user!.id);
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => api.mySessionCredits(),
     enabled: !!user,
   });
 
   // Fetch purchases
   const { data: purchases = [] } = useQuery({
     queryKey: ["my-purchases-cuenta", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("purchases")
-        .select("*, products(name, type)")
-        .eq("user_id", user!.id)
-        .eq("status", "completed");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => api.myPurchases(),
     enabled: !!user,
   });
 
   // Fetch monthly booking limits
   const { data: monthlyLimits = [] } = useQuery({
     queryKey: ["my-monthly-limits", user?.id],
-    queryFn: async () => {
-      const currentMonth = new Date().toISOString().slice(0, 7);
-      const { data, error } = await supabase
-        .from("monthly_booking_limits")
-        .select("*")
-        .eq("user_id", user!.id)
-        .eq("month", currentMonth);
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => api.myMonthlyLimit(new Date().toISOString().slice(0, 7)),
     enabled: !!user,
   });
 
@@ -118,7 +86,7 @@ const Cuenta = () => {
               </div>
               <div>
                 <p className="font-heading text-xl font-medium">
-                  {user?.user_metadata?.full_name || "Usuario"}
+                  {user?.name || "Usuario"}
                 </p>
                 <p className="text-sm text-muted-foreground font-body">{user?.email}</p>
               </div>

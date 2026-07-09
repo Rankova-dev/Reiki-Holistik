@@ -20,6 +20,8 @@ dist-ssr
 server/data
 server/uploads/*
 !server/uploads/.gitkeep
+server/course-media
+server/payment-proofs
 
 # Editor directories and files
 .vscode/*

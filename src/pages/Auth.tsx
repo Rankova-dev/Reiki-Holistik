@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Mail, Lock, Eye, EyeOff, User } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
+import { api, setAccountToken } from "@/lib/api";
+import { useAuth } from "@/hooks/useAuth";
+import { preloadSocialAuthScripts, signInWithApple, signInWithGoogle } from "@/lib/socialAuth";
 import { useToast } from "@/hooks/use-toast";
 
 type AuthMode = "login" | "register" | "forgot";
@@ -17,6 +18,11 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { refresh } = useAuth();
+
+  useEffect(() => {
+    preloadSocialAuthScripts();
+  }, []);
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,26 +30,20 @@ const Auth = () => {
 
     try {
       if (mode === "forgot") {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/reset-password`,
+        toast({
+          title: "Aún no disponible",
+          description: "El restablecimiento de contraseña por email todavía no está activado. Contáctanos por WhatsApp y te ayudamos a recuperar el acceso.",
         });
-        if (error) throw error;
-        toast({ title: "Email enviado", description: "Revisa tu bandeja de entrada para restablecer tu contraseña." });
         setMode("login");
       } else if (mode === "register") {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: { full_name: name },
-            emailRedirectTo: window.location.origin,
-          },
-        });
-        if (error) throw error;
-        toast({ title: "Registro exitoso", description: "Revisa tu email para confirmar tu cuenta." });
+        const { token } = await api.register(email, password, name);
+        setAccountToken(token);
+        await refresh();
+        navigate("/cuenta");
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        const { token } = await api.login(email, password);
+        setAccountToken(token);
+        await refresh();
         navigate("/cuenta");
       }
     } catch (error: any) {
@@ -56,13 +56,9 @@ const Auth = () => {
   const handleSocialLogin = async (provider: "google" | "apple") => {
     setLoading(true);
     try {
-      const result = await lovable.auth.signInWithOAuth(provider, {
-        redirect_uri: window.location.origin,
-      });
-      if (result.error) {
-        toast({ title: "Error", description: String(result.error), variant: "destructive" });
-      }
-      if (result.redirected) return;
+      if (provider === "google") await signInWithGoogle();
+      else await signInWithApple();
+      await refresh();
       navigate("/cuenta");
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -97,16 +93,6 @@ const Auth = () => {
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
                 </svg>
                 Continuar con Google
-              </button>
-              <button
-                onClick={() => handleSocialLogin("apple")}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-foreground text-background rounded-full font-body text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-              >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
-                </svg>
-                Continuar con Apple
               </button>
             </div>
           )}

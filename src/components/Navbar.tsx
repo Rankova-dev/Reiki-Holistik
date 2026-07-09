@@ -32,8 +32,7 @@ const Navbar = () => {
     { to: "/contacto", label: "Contacto" },
   ];
 
-  const ADMIN_EMAILS = ["betyriudols@gmail.com", "albert.diaz@alumni.mondragon.edu"];
-  const isAdmin = user && ADMIN_EMAILS.includes(user.email || "");
+  const isAdmin = user?.role === "admin";
 
   const formacionLinks = [
     { to: "/formacion", label: "Cursos" },
